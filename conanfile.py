@@ -1,7 +1,7 @@
-from conans import ConanFile, CMake, tools, AutoToolsBuildEnvironment
+from conans import ConanFile, CMake, tools, AutoToolsBuildEnvironment, RunEnvironment
 from conans.errors import ConanInvalidConfiguration, ConanException
 from conans.tools import os_info
-import os, re, stat, fnmatch, platform
+import os, re, stat, fnmatch, platform, glob
 from functools import total_ordering
 
 class grpcwebConan(ConanFile):
@@ -118,13 +118,62 @@ class grpcwebConan(ConanFile):
     def build(self):
         self.output.info('Building package \'{}\''.format(self.name))
 
-        # NOTE: without submodules (!!!)
-        #with tools.chdir(self._source_dir + "/third_party/grpc"):
-        #    self._run_make(parallel=False)
-        #with tools.chdir(self._source_dir + "/third_party/grpc/third_party/protobuf"):
-        #    self._run_make(parallel=False)
-        with tools.chdir(self._source_dir):
-            self._run_make(targets=["plugin"], parallel=False)
+        # NOTE: make sure `protoc` can be found using PATH environment variable
+        bin_path = ""
+        for p in self.deps_cpp_info.bin_paths:
+            bin_path = "%s%s%s" % (p, os.pathsep, bin_path)
+
+        lib_path = ""
+        for p in self.deps_cpp_info.lib_paths:
+            lib_path = "%s%s%s" % (p, os.pathsep, lib_path)
+
+        # NOTE: make sure `/lib` from `protobuf` can be found using PATH environment variable
+        for p in self.deps_cpp_info["protobuf"].lib_paths:
+            lib_path = "%s%s%s" % (p, os.pathsep, lib_path)
+            self.output.info('protobuf lib_path += %s' % (p))
+            files = [f for f in glob.glob(p + "/**", recursive=True)]
+            for f in files:
+                self.output.info('protobuf libs: %s' % (f))
+
+        include_path = ""
+        for p in self.deps_cpp_info.includedirs:
+            include_path = "%s%s%s" % (p, os.pathsep, include_path)
+
+        # NOTE: make sure `/include` from `protobuf` can be found using PATH environment variable
+        for p in self.deps_cpp_info["protobuf"].include_paths:
+            include_path = "%s%s%s" % (p, os.pathsep, include_path)
+
+        # NOTE: make sure `grpc_cpp_plugin` can be found using PATH environment variable
+        path_to_grpc_cpp_plugin = os.path.join(os.getcwd(), "bin")
+
+        # see https://docs.conan.io/en/latest/reference/build_helpers/autotools.html
+        # AutoToolsBuildEnvironment sets LIBS, LDFLAGS, CFLAGS, CXXFLAGS and CPPFLAGS based on requirements
+        env_build = AutoToolsBuildEnvironment(self)
+        self.output.info('AutoToolsBuildEnvironment include_paths = %s' % (','.join(env_build.include_paths)))
+
+        env = {
+             "LIBS": "%s%s%s" % (env_build.vars["LIBS"] if "LIBS" in env_build.vars else "", " ", os.environ["LIBS"] if "LIBS" in os.environ else ""),
+             "LDFLAGS": "%s%s%s" % (env_build.vars["LDFLAGS"] if "LDFLAGS" in env_build.vars else "", " ", os.environ["LDFLAGS"] if "LDFLAGS" in os.environ else ""),
+             "CFLAGS": "%s%s%s" % (env_build.vars["CFLAGS"] if "CFLAGS" in env_build.vars else "", " ", os.environ["CFLAGS"] if "CFLAGS" in os.environ else ""),
+             "CXXFLAGS": "%s%s%s" % (env_build.vars["CXXFLAGS"] if "CXXFLAGS" in env_build.vars else "", " ", os.environ["CXXFLAGS"] if "CXXFLAGS" in os.environ else ""),
+             "CPPFLAGS": "%s%s%s" % (env_build.vars["CPPFLAGS"] if "CPPFLAGS" in env_build.vars else "", " ", os.environ["CPPFLAGS"] if "CPPFLAGS" in os.environ else ""),
+             "PATH": "%s%s%s%s%s%s%s" % (path_to_grpc_cpp_plugin, os.pathsep, bin_path, os.pathsep, include_path, os.pathsep, os.environ["PATH"] if "PATH" in os.environ else ""),
+             "LD_LIBRARY_PATH": "%s%s%s" % (lib_path, os.pathsep, os.environ["LD_LIBRARY_PATH"] if "LD_LIBRARY_PATH" in os.environ else "")
+        }
+
+        self.output.info("=================linux environment for %s=================\n" % (self.name))
+        self.output.info('PATH = %s' % (env['PATH']))
+        self.output.info('LD_LIBRARY_PATH = %s' % (env['LD_LIBRARY_PATH']))
+        self.output.info('')
+        with tools.environment_append(env):
+            # NOTE: without submodules (!!!)
+            #with tools.chdir(self._source_dir + "/third_party/grpc"):
+            #    self._run_make(parallel=False)
+            #with tools.chdir(self._source_dir + "/third_party/grpc/third_party/protobuf"):
+            #    self._run_make(parallel=False)
+            with tools.chdir(self._source_dir):
+                #self._run_make(targets=["plugin"], parallel=False)
+                env_build.make(vars=env, target="plugin")
 
     def package(self):
         self.output.info('Packaging package \'{}\''.format(self.name))
@@ -166,7 +215,7 @@ class grpcwebConan(ConanFile):
         self.cpp_info.names["cmake_find_package_multi"] = "grpcweb"
 
     # see `conan install . -g deploy` in https://docs.conan.io/en/latest/devtools/running_packages.html
-    def deploy(self):
+    #def deploy(self):
         #self.copy("*", dst="/usr/local/bin", src="bin", keep_path=False)
         #self.copy("*protoc-gen-grpc-web*", dst="/usr/local/bin", src="bin", keep_path=False)
-        self.copy("*", dst="bin", src="bin", keep_path=False)
+    #    self.copy("*", dst="bin", src="bin", keep_path=False)
