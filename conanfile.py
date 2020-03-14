@@ -236,7 +236,7 @@ class webrtcConan(ConanFile):
         self.cpp_info.bindirs = ["bin"]
         # collects libupb, make sure to remove 03-simple.a
         self.cpp_info.libs = tools.collect_libs(self)
-        self.cpp_info.libs += "webrtc_full"
+        #self.cpp_info.libs += ["webrtc_full"]
 
         if self.settings.compiler == "Visual Studio":
             self.cpp_info.system_libs += ["wsock32", "ws2_32"]
