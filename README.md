@@ -4,7 +4,9 @@ wrtc with openssl support (patched)
 
 added support for conan and docker 
 
-TODO: ADD conan support
+supports conan, but as pre-built package (pre-built binaries/libs/includes can be extracted from docker as below)
+
+TODO: ADD conan support for builds from source
 
 ## Docker build with `--no-cache`
 
@@ -34,6 +36,8 @@ mkdir built_webrtc
 cd built_webrtc
 
 # copy files from docker container to host machine
+(docker stop conan_webrtc || true)
+(docker rm conan_webrtc || true)
 docker run --cap-add=SYS_PTRACE --security-opt seccomp=unconfined \
     -it \
     --entrypoint="/bin/bash" \
@@ -43,17 +47,34 @@ docker run --cap-add=SYS_PTRACE --security-opt seccomp=unconfined \
     conan_webrtc_build_package_export_test_upload
 
 # type in docker container
-cp /root/workspace/webrtc-checkout/src/out/release/libwebrtc_full.a /home/u/host_dir/libwebrtc_full.a
-cp -r /root/workspace/webrtc-checkout/src/include /home/u/host_dir/include
+# Copy pre-built webrtc library to "lib" folder
+mkdir -p /home/u/host_dir/lib
+cp /root/workspace/webrtc-checkout/src/out/release/libwebrtc_full.a /home/u/host_dir/lib/libwebrtc_full.a
+# Copy pre-built webrtc include files to "include" folder
+mkdir -p /home/u/host_dir/include/webrtc
+cd /root/workspace/webrtc-checkout/src
+find . -name "*.hpp" -type f | xargs -I {} cp --parents {} /home/u/host_dir/include/webrtc
+find . -name "*.hxx" -type f | xargs -I {} cp --parents {} /home/u/host_dir/include/webrtc
+find . -name "*.hh" -type f | xargs -I {} cp --parents {} /home/u/host_dir/include/webrtc
+find . -name "*.inc" -type f | xargs -I {} cp --parents {} /home/u/host_dir/include/webrtc
+find . -name "*.h" -type f | xargs -I {} cp --parents {} /home/u/host_dir/include/webrtc
+ls -artl /home/u/host_dir/include
+ls -artl /home/u/host_dir/include/webrtc
 
 # exit to host machine from docker container
 exit
 
-# file must exist in host machine
-file libwebrtc_full.a
+sudo chown -R $USER .
 
-sudo -E docker stop conan_webrtc
-sudo -E docker rm conan_webrtc
+# file must exist in host machine
+file lib/libwebrtc_full.a
+
+# file must exist in host machine
+file include/webrtc/api/array_view.h
+file include/webrtc/rtc_base/opensslutility.h
+
+(docker stop conan_webrtc || true)
+(docker rm conan_webrtc || true)
 
 # OPTIONAL: clear unused data
 sudo -E docker rmi conan_webrtc_*
@@ -61,10 +82,13 @@ sudo -E docker rmi conan_webrtc_*
 
 ## Local build
 
+Copy pre-built webrtc library to "lib" folder
+Copy pre-built webrtc include dir to "include" folder
+
 ```bash
 export PKG_NAME=webrtc_conan/69@conan/stable
-conan remove $PKG_NAME
-conan create . conan/stable -s build_type=Debug --profile gcc --build missing
+(conan remove --force $PKG_NAME || true)
+conan create . conan/stable -s build_type=Debug --profile clang --build missing
 CONAN_REVISIONS_ENABLED=1 CONAN_VERBOSE_TRACEBACK=1 CONAN_PRINT_RUN_COMMANDS=1 CONAN_LOGGING_LEVEL=10 conan upload $PKG_NAME --all -r=conan-local -c --retry 3 --retry-wait 10 --force
 ```
 
@@ -72,5 +96,5 @@ CONAN_REVISIONS_ENABLED=1 CONAN_VERBOSE_TRACEBACK=1 CONAN_PRINT_RUN_COMMANDS=1 C
 
 ```bash
 # NOTE: about `--keep-source` see https://bincrafters.github.io/2018/02/27/Updated-Conan-Package-Flow-1.1/
-CONAN_REVISIONS_ENABLED=1 CONAN_VERBOSE_TRACEBACK=1 CONAN_PRINT_RUN_COMMANDS=1 CONAN_LOGGING_LEVEL=10 conan create . conan/stable -s build_type=Debug --profile gcc --build missing --keep-source
+CONAN_REVISIONS_ENABLED=1 CONAN_VERBOSE_TRACEBACK=1 CONAN_PRINT_RUN_COMMANDS=1 CONAN_LOGGING_LEVEL=10 conan create . conan/stable -s build_type=Debug --profile clang --build missing --keep-source
 ```
