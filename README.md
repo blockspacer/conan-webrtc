@@ -89,6 +89,12 @@ conan create . conan/stable -s build_type=Debug --profile clang --build missing
 CONAN_REVISIONS_ENABLED=1 CONAN_VERBOSE_TRACEBACK=1 CONAN_PRINT_RUN_COMMANDS=1 CONAN_LOGGING_LEVEL=10 conan upload $PKG_NAME --all -r=conan-local -c --retry 3 --retry-wait 10 --force
 ```
 
+## How to package webrtc without Docker
+
+Follow commands from Dockerfile-s to build webrtc locally
+
+You can manually copy build artifacts and package with conan as stated in `Local build` section above
+
 ## How to diagnose errors in conanfile (CONAN_PRINT_RUN_COMMANDS)
 
 ```bash
