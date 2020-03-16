@@ -2,7 +2,7 @@
 
 wrtc with openssl support (patched)
 
-added support for conan and docker 
+added support for conan and docker
 
 supports conan, but as pre-built package (pre-built binaries/libs/includes can be extracted from docker as below)
 
@@ -31,9 +31,6 @@ sudo -E docker build \
     --build-arg CONAN_UPLOAD="conan upload --all -r=conan-local -c --retry 3 --retry-wait 10 --force" \
     --build-arg BUILD_TYPE=Debug \
     -f conan_webrtc_build.Dockerfile --tag conan_webrtc_build_package_export_test_upload . --no-cache
-
-mkdir built_webrtc
-cd built_webrtc
 
 # copy files from docker container to host machine
 (docker stop conan_webrtc || true)
